@@ -1,0 +1,90 @@
+#include <msp430.h> 
+#include "oled.h"
+#include <stdint.h>
+#include <stdio.h>
+
+// This is how we can include bitmap images
+#include "images/sun.h"
+#include "images/walking.h"
+
+// Configure MSP430 into fast mode
+void init_clocks()
+{
+    // Configure one FRAM waitstate as required by the device datasheet for MCLK
+    // operation beyond 8MHz _before_ configuring the clock system.
+    FRCTL0 = FRCTLPW | NWAITS_1;
+
+    // Startup clock system with max DCO setting ~8MHz
+    CSCTL0_H = CSKEY_H;                     // Unlock CS registers
+    CSCTL1 = DCOFSEL_4 | DCORSEL;           // Set DCO to 16MHz
+    CSCTL2 = SELA__VLOCLK | SELS__DCOCLK | SELM__DCOCLK;
+    CSCTL3 = DIVA__1 | DIVS__1 | DIVM__1;   // Set all dividers
+    CSCTL0_H = 0;                           // Lock CS registers
+}
+
+/**
+ * main.c
+ */
+SSD1306 display;
+
+
+
+int draw_something(void)
+{
+    const int x = 88;
+    const int y = 18;
+
+    int curr_x = x;
+
+    WDTCTL = WDTPW | WDTHOLD;               // Stop watchdog timer
+    PM5CTL0 &= ~LOCKLPM5; // Disable the GPIO power-on default high-impedance mode
+                          // to activate previously configured port settings
+    P1DIR |= 0x01;                          // Set P1.0 to output direction
+    init_clocks();
+
+    display.init();
+    display.clear_off();
+
+    display.draw_rect(15, 15, 110, 38, SSD1306_WHITE);
+
+    display.setFont(FONT_LARGE);
+    bool color1 = display.get_xy(0, 0); // Testing get_xy => color1 should be true
+    bool color2 = display.get_xy(0, 1); //                => color2 should be false
+    char *txt = "72 °F";
+    char *title = "Current Weather:";
+    display.drawText(20, 22, txt, SSD1306_WHITE);
+    display.drawImage(sun_image, x, y);
+    display.setFont(FONT_SMALL);
+    display.drawText(0, 0, title, SSD1306_WHITE);
+
+    display.refresh();
+
+    const int offset = 5;
+    bool forward = true;
+
+    while (1)
+    {
+        // Main loop here?
+        // Do something fun?
+        if (curr_x == x - offset){
+            forward = true;
+        }
+        else if (curr_x == x + offset){
+            forward = false;
+        }
+
+        if (curr_x != x + offset && forward)
+        {
+            display.drawImage(sun_image, curr_x++, y);
+        }
+
+        else if (curr_x != x - offset && !forward)
+        {
+            display.drawImage(sun_image, curr_x--, y);
+        }
+
+        display.refresh();
+        __delay_cycles(1500000);
+
+    }
+}
